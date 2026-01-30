@@ -667,48 +667,76 @@
             }
             
             if (firstTabLineIndex >= 0) {
-                // Found a line with tabs - this is the format where header is on separate lines
-                // Count non-empty lines before the first tabbed line = number of columns
-                const headerLines = [];
-                for (let i = 0; i < firstTabLineIndex; i++) {
-                    if (lines[i].trim()) {
-                        headerLines.push(lines[i].trim());
-                    }
-                }
-                
-                // Use manual column count if provided, otherwise infer from header lines
-                if (manualColumnCount) {
-                    headerColumnCount = manualColumnCount;
-                    // Take first N non-empty lines as header
-                    const allHeaderLines = lines.slice(0, firstTabLineIndex).filter(line => line.trim());
-                    headerRow = allHeaderLines.slice(0, manualColumnCount).map(line => line.trim());
-                    // Pad if needed
-                    while (headerRow.length < manualColumnCount) {
-                        headerRow.push('');
+                // Check if first line has tabs - if so, it's standard TSV format
+                if (firstTabLineIndex === 0) {
+                    // Standard TSV: first line is header with tabs, rest are data rows
+                    const firstLine = lines[0];
+                    headerRow = firstLine.split('\t').map(cell => cell.trim());
+                    headerColumnCount = headerRow.length;
+                    
+                    if (headerRow && headerRow.length > 0) {
+                        rows.push(headerRow);
+                        
+                        // Parse remaining lines as tab-separated data
+                        for (let i = 1; i < lines.length; i++) {
+                            const line = lines[i];
+                            if (!line.trim()) continue;
+                            
+                            // Split by tabs
+                            const cells = line.split('\t').map(cell => cell.trim());
+                            
+                            // Pad or trim to match header column count
+                            const trimmedCells = [...cells];
+                            while (trimmedCells.length < headerColumnCount) {
+                                trimmedCells.push('');
+                            }
+                            rows.push(trimmedCells.slice(0, headerColumnCount));
+                        }
                     }
                 } else {
-                    headerColumnCount = headerLines.length;
-                    headerRow = headerLines;
-                }
-                
-                if (headerRow && headerRow.length > 0) {
-                    rows.push(headerRow);
-                    dataStartIndex = firstTabLineIndex;
-                    
-                    // Parse remaining lines as tab-separated data
-                    for (let i = dataStartIndex; i < lines.length; i++) {
-                        const line = lines[i];
-                        if (!line.trim()) continue;
-                        
-                        // Split by tabs
-                        const cells = line.split('\t').map(cell => cell.trim());
-                        
-                        // Pad or trim to match header column count
-                        const trimmedCells = [...cells];
-                        while (trimmedCells.length < headerColumnCount) {
-                            trimmedCells.push('');
+                    // Header is on separate lines before first tabbed line
+                    // Count non-empty lines before the first tabbed line = number of columns
+                    const headerLines = [];
+                    for (let i = 0; i < firstTabLineIndex; i++) {
+                        if (lines[i].trim()) {
+                            headerLines.push(lines[i].trim());
                         }
-                        rows.push(trimmedCells.slice(0, headerColumnCount));
+                    }
+                    
+                    // Use manual column count if provided, otherwise infer from header lines
+                    if (manualColumnCount) {
+                        headerColumnCount = manualColumnCount;
+                        // Take first N non-empty lines as header
+                        const allHeaderLines = lines.slice(0, firstTabLineIndex).filter(line => line.trim());
+                        headerRow = allHeaderLines.slice(0, manualColumnCount).map(line => line.trim());
+                        // Pad if needed
+                        while (headerRow.length < manualColumnCount) {
+                            headerRow.push('');
+                        }
+                    } else {
+                        headerColumnCount = headerLines.length;
+                        headerRow = headerLines;
+                    }
+                    
+                    if (headerRow && headerRow.length > 0) {
+                        rows.push(headerRow);
+                        dataStartIndex = firstTabLineIndex;
+                        
+                        // Parse remaining lines as tab-separated data
+                        for (let i = dataStartIndex; i < lines.length; i++) {
+                            const line = lines[i];
+                            if (!line.trim()) continue;
+                            
+                            // Split by tabs
+                            const cells = line.split('\t').map(cell => cell.trim());
+                            
+                            // Pad or trim to match header column count
+                            const trimmedCells = [...cells];
+                            while (trimmedCells.length < headerColumnCount) {
+                                trimmedCells.push('');
+                            }
+                            rows.push(trimmedCells.slice(0, headerColumnCount));
+                        }
                     }
                 }
             } else {
