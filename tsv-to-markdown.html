@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML-Paste to Markdown Table Converter</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .editor-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            padding: 30px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .editor-panel {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .editor-panel label {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 1.1em;
+        }
+
+        .editor-panel textarea {
+            width: 100%;
+            min-height: 400px;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            resize: vertical;
+            transition: border-color 0.3s;
+        }
+
+        .editor-panel textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .preview-section {
+            padding: 30px;
+            background: #f8f9fa;
+        }
+
+        .preview-section h2 {
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 1.8em;
+        }
+
+        .table-content {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            border: 2px solid #e0e0e0;
+            min-height: 200px;
+            overflow-x: auto;
+        }
+
+        markdown {
+            display: none;
+        }
+
+        /* Table wrapper for mobile horizontal scroll */
+        .table-content {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            margin: 20px 0;
+        }
+
+        /* Base shared table behavior */
+        .table-content table.md-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            background: #fff;
+        }
+
+        @media (max-width: 900px) {
+            .table-content table.md-table {
+                width: max-content;
+                min-width: 100%;
+            }
+        }
+
+        .table-content table.md-table th,
+        .table-content table.md-table td {
+            white-space: normal;
+            word-break: normal;
+            overflow-wrap: break-word;
+            hyphens: auto;
+        }
+
+        .table-content table.md-table th {
+            font-weight: 700;
+        }
+
+        .table-content table.md-table th:first-child,
+        .table-content table.md-table td:first-child {
+            min-width: 64px;               /* prevents super narrow first col */
+        }
+
+        /* If the first header cell is long text, give col 1 a real width */
+        .table-content table.md-table.md-firstwide th:first-child,
+        .table-content table.md-table.md-firstwide td:first-child {
+            min-width: 240px;
+            width: 28%;
+        }
+
+        /* If there are many columns, prevent each one from collapsing */
+        .table-content table.md-table.md-manycols th,
+        .table-content table.md-table.md-manycols td {
+            min-width: 140px;
+        }
+
+        /* ===== Default / fallback style (aebr) ===== */
+        .table-content table.md-table.aebr {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .table-content table.md-table.aebr th,
+        .table-content table.md-table.aebr td {
+            padding: 12px 14px;
+            border-bottom: 1px solid #e5e7eb;
+            vertical-align: top;
+            line-height: 1.45;
+            font-size: 16px;
+        }
+
+        .table-content table.md-table.aebr th {
+            background: #f3f4f6;
+            font-weight: 700;
+            text-align: left;
+        }
+
+        /* ===== 80k-like style (fixed) ===== */
+        .table-content table.md-table.style80k {
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            background: #fff;
+            color: #111827;
+            table-layout: auto;
+            width: 100%;
+        }
+
+        .table-content table.md-table.style80k th,
+        .table-content table.md-table.style80k td {
+            padding: 14px 16px;
+            border-bottom: 1px solid #e5e7eb;
+            vertical-align: top;
+            line-height: 1.45;
+            font-size: 16px;
+            white-space: normal;
+            word-break: normal;
+            overflow-wrap: break-word;
+            hyphens: auto;
+        }
+
+        .table-content table.md-table.style80k th {
+            background: #f3f4f6;
+            font-weight: 700;
+            text-align: left;
+            max-width: none;
+        }
+
+        .table-content table.md-table.style80k th:first-child,
+        .table-content table.md-table.style80k td:first-child {
+            width: 64px;
+            white-space: normal !important;
+            font-weight: 600;
+        }
+
+        /* Subtle zebra (optional; original often uses very subtle contrast) */
+        .table-content table.md-table.style80k tbody tr:nth-child(even) {
+            background: #fafafa;
+        }
+
+        /* Remove last borders */
+        .table-content table.md-table.style80k tr:last-child td {
+            border-bottom: 0;
+        }
+
+        .style-selector {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .style-selector label {
+            font-weight: 600;
+            color: #333;
+            font-size: 1em;
+        }
+
+        .style-selector select {
+            padding: 8px 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 1em;
+            background: white;
+            cursor: pointer;
+            transition: border-color 0.3s;
+        }
+
+        .style-selector select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .style-editor {
+            margin-top: 20px;
+        }
+
+        .style-editor label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 1em;
+        }
+
+        .style-editor textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            resize: vertical;
+            transition: border-color 0.3s;
+            background: #f8f9fa;
+        }
+
+        .style-editor textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .style-editor textarea[readonly] {
+            cursor: default;
+        }
+
+        .empty-state {
+            color: #999;
+            font-style: italic;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .debug-info {
+            padding: 10px 30px;
+            background: #fff3cd;
+            border-top: 1px solid #ffc107;
+            font-size: 0.9em;
+            color: #856404;
+        }
+
+        @media (max-width: 768px) {
+            .editor-section {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 1.8em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 HTML-Paste to Markdown Table Converter</h1>
+            <p>Paste your HTML table data and get instant markdown table syntax</p>
+        </div>
+
+        <div class="editor-section">
+            <div class="editor-panel">
+                <label for="tsv-input">HTML Table Input</label>
+                <textarea id="tsv-input" placeholder="Paste your HTML table data here...&#10;For example:&#10;Name	Age	City&#10;John	25	New York&#10;Jane	30	London"></textarea>
+                <div style="margin-top: 10px; display: flex; align-items: center; gap: 10px;">
+                    <label for="column-count" style="margin: 0; font-size: 0.9em; color: #666;">Columns (auto-detect if empty):</label>
+                    <input type="number" id="column-count" min="1" max="20" style="width: 60px; padding: 5px; border: 1px solid #ddd; border-radius: 4px;" placeholder="auto">
+                </div>
+            </div>
+            <div class="editor-panel">
+                <label for="markdown-output">Markdown Table Output</label>
+                <textarea id="markdown-output" readonly placeholder="Markdown table will appear here..."></textarea>
+            </div>
+        </div>
+
+        <div class="preview-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="margin: 0;">Preview</h2>
+                <div class="style-selector">
+                    <label for="style-select">Style:</label>
+                    <select id="style-select">
+                        <option value="default">Default</option>
+                        <option value="80000hours">80000 Hours</option>
+                    </select>
+                </div>
+            </div>
+            <div class="table-content" id="preview">
+                <div class="empty-state">Enter HTML table data above to see the preview</div>
+            </div>
+            <div class="style-editor">
+                <label for="style-css">CSS Style Code:</label>
+                <textarea id="style-css" readonly placeholder="CSS code will appear here..."></textarea>
+            </div>
+        </div>
+        <div class="debug-info" id="debug-info" style="display: none;"></div>
+    </div>
+
+    <script>
+        const tsvInput = document.getElementById('tsv-input');
+        const markdownOutput = document.getElementById('markdown-output');
+        const preview = document.getElementById('preview');
+        const debugInfo = document.getElementById('debug-info');
+        const columnCountInput = document.getElementById('column-count');
+        const styleSelect = document.getElementById('style-select');
+        const styleCss = document.getElementById('style-css');
+        
+        // CSS templates for each style
+        const styleTemplates = {
+            default: `markdown {
+  display: none;
+}
+
+/* Table wrapper for mobile horizontal scroll */
+.table-content {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 20px 0;
+}
+
+/* Base shared table behavior */
+.table-content table.md-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: #fff;
+}
+
+@media (max-width: 900px) {
+  .table-content table.md-table {
+    width: max-content;
+    min-width: 100%;
+  }
+}
+
+.table-content table.md-table th,
+.table-content table.md-table td {
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+.table-content table.md-table th {
+  font-weight: 700;
+}
+
+.table-content table.md-table th:first-child,
+.table-content table.md-table td:first-child {
+  min-width: 64px;
+}
+
+.table-content table.md-table.md-firstwide th:first-child,
+.table-content table.md-table.md-firstwide td:first-child {
+  min-width: 240px;
+  width: 28%;
+}
+
+.table-content table.md-table.md-manycols th,
+.table-content table.md-table.md-manycols td {
+  min-width: 140px;
+}
+
+/* ===== Default / fallback style (aebr) ===== */
+.table-content table.md-table.aebr {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.table-content table.md-table.aebr th,
+.table-content table.md-table.aebr td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: top;
+  line-height: 1.45;
+  font-size: 16px;
+}
+
+.table-content table.md-table.aebr th {
+  background: #f3f4f6;
+  font-weight: 700;
+  text-align: left;
+}`,
+            '80000hours': `markdown {
+  display: none;
+}
+
+/* Table wrapper for mobile horizontal scroll */
+.table-content {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 20px 0;
+}
+
+/* Base shared table behavior */
+.table-content table.md-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: #fff;
+}
+
+@media (max-width: 900px) {
+  .table-content table.md-table {
+    width: max-content;
+    min-width: 100%;
+  }
+}
+
+.table-content table.md-table th,
+.table-content table.md-table td {
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+.table-content table.md-table th {
+  font-weight: 700;
+}
+
+.table-content table.md-table th:first-child,
+.table-content table.md-table td:first-child {
+  min-width: 64px;
+}
+
+.table-content table.md-table.md-firstwide th:first-child,
+.table-content table.md-table.md-firstwide td:first-child {
+  min-width: 240px;
+  width: 28%;
+}
+
+.table-content table.md-table.md-manycols th,
+.table-content table.md-table.md-manycols td {
+  min-width: 140px;
+}
+
+/* ===== 80k-like style (fixed) ===== */
+.table-content table.md-table.style80k {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  color: #111827;
+  table-layout: auto;
+  width: 100%;
+}
+
+.table-content table.md-table.style80k th,
+.table-content table.md-table.style80k td {
+  padding: 14px 16px;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: top;
+  line-height: 1.45;
+  font-size: 16px;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+.table-content table.md-table.style80k th {
+  background: #f3f4f6;
+  font-weight: 700;
+  text-align: left;
+  max-width: none;
+}
+
+.table-content table.md-table.style80k th:first-child,
+.table-content table.md-table.style80k td:first-child {
+  width: 64px;
+  white-space: normal !important;
+  font-weight: 600;
+}
+
+.table-content table.md-table.style80k tbody tr:nth-child(even) {
+  background: #fafafa;
+}
+
+.table-content table.md-table.style80k tr:last-child td {
+  border-bottom: 0;
+}`
+        };
+        
+        // Create a style element for dynamic CSS injection
+        let dynamicStyleElement = document.createElement('style');
+        dynamicStyleElement.id = 'dynamic-table-style';
+        document.head.appendChild(dynamicStyleElement);
+
+        function convertTSVToMarkdown(tsv, manualColumnCount = null) {
+            if (!tsv.trim()) {
+                debugInfo.style.display = 'none';
+                return '';
+            }
+
+            // Normalize line endings and split by newlines
+            const normalizedText = tsv.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+            const allLines = normalizedText.split('\n');
+            
+            // Filter out empty lines at the end, but keep them in the middle as they might indicate row breaks
+            const lines = [];
+            for (let i = 0; i < allLines.length; i++) {
+                const line = allLines[i];
+                // Keep the line if it has content, or if it's not at the very end
+                if (line.trim() || i < allLines.length - 1) {
+                    lines.push(line);
+                }
+            }
+            
+            if (lines.length === 0) {
+                debugInfo.style.display = 'none';
+                return '';
+            }
+            
+            let rows = [];
+            let headerRow = null;
+            let headerColumnCount = null;
+            let dataStartIndex = 0;
+            
+            // Find the first line that contains tabs (this marks the start of data rows)
+            let firstTabLineIndex = -1;
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].includes('\t')) {
+                    firstTabLineIndex = i;
+                    break;
+                }
+            }
+            
+            if (firstTabLineIndex >= 0) {
+                // Found a line with tabs - this is the format where header is on separate lines
+                // Count non-empty lines before the first tabbed line = number of columns
+                const headerLines = [];
+                for (let i = 0; i < firstTabLineIndex; i++) {
+                    if (lines[i].trim()) {
+                        headerLines.push(lines[i].trim());
+                    }
+                }
+                
+                // Use manual column count if provided, otherwise infer from header lines
+                if (manualColumnCount) {
+                    headerColumnCount = manualColumnCount;
+                    // Take first N non-empty lines as header
+                    const allHeaderLines = lines.slice(0, firstTabLineIndex).filter(line => line.trim());
+                    headerRow = allHeaderLines.slice(0, manualColumnCount).map(line => line.trim());
+                    // Pad if needed
+                    while (headerRow.length < manualColumnCount) {
+                        headerRow.push('');
+                    }
+                } else {
+                    headerColumnCount = headerLines.length;
+                    headerRow = headerLines;
+                }
+                
+                if (headerRow && headerRow.length > 0) {
+                    rows.push(headerRow);
+                    dataStartIndex = firstTabLineIndex;
+                    
+                    // Parse remaining lines as tab-separated data
+                    for (let i = dataStartIndex; i < lines.length; i++) {
+                        const line = lines[i];
+                        if (!line.trim()) continue;
+                        
+                        // Split by tabs
+                        const cells = line.split('\t').map(cell => cell.trim());
+                        
+                        // Pad or trim to match header column count
+                        const trimmedCells = [...cells];
+                        while (trimmedCells.length < headerColumnCount) {
+                            trimmedCells.push('');
+                        }
+                        rows.push(trimmedCells.slice(0, headerColumnCount));
+                    }
+                }
+            } else {
+                // No tabs found - fallback to other detection methods
+                const hasTabsInAnyLine = false;
+                const sampleLine = lines.find(line => line.trim());
+                const mightBeSpaceSeparated = sampleLine && /\s{2,}/.test(sampleLine);
+                
+                if (mightBeSpaceSeparated) {
+                    // Space-separated format
+                    for (let i = 0; i < lines.length; i++) {
+                        const line = lines[i];
+                        if (!line.trim()) continue;
+                        
+                        const cells = line.split(/\s{2,}/).map(cell => cell.trim());
+                        if (cells.some(cell => cell.length > 0)) {
+                            rows.push(cells);
+                        }
+                    }
+                } else if (manualColumnCount) {
+                    // Manual column count - group lines into rows
+                    const nonEmptyLines = lines.filter(line => line.trim());
+                    headerRow = nonEmptyLines.slice(0, manualColumnCount).map(line => line.trim());
+                    while (headerRow.length < manualColumnCount) {
+                        headerRow.push('');
+                    }
+                    rows.push(headerRow);
+                    
+                    const remainingLines = nonEmptyLines.slice(manualColumnCount);
+                    for (let i = 0; i < remainingLines.length; i += manualColumnCount) {
+                        const rowCells = remainingLines.slice(i, i + manualColumnCount).map(line => line.trim());
+                        while (rowCells.length < manualColumnCount) {
+                            rowCells.push('');
+                        }
+                        rows.push(rowCells);
+                    }
+                } else {
+                    // Last resort: treat each line as a single cell
+                    for (let i = 0; i < lines.length; i++) {
+                        const line = lines[i];
+                        if (line.trim()) {
+                            rows.push([line.trim()]);
+                        }
+                    }
+                }
+            }
+
+            if (rows.length === 0) {
+                debugInfo.style.display = 'none';
+                return '';
+            }
+
+            // Determine the maximum number of columns across all rows
+            const maxCols = rows.length > 0 ? Math.max(...rows.map(row => row.length), 1) : 1;
+            
+            // Show debug info
+            let separatorInfo = '';
+            if (firstTabLineIndex >= 0) {
+                separatorInfo = `Header format detected: ${headerColumnCount} header line(s) before first data row ✓`;
+            } else {
+                separatorInfo = '⚠ No tabs detected - using fallback parsing';
+            }
+            debugInfo.textContent = `Detected ${rows.length} row(s), ${maxCols} column(s). ${separatorInfo}`;
+            debugInfo.style.display = 'block';
+            
+            // Ensure all rows have the same number of columns
+            const normalizedRows = rows.map(row => {
+                const paddedRow = [...row];
+                while (paddedRow.length < maxCols) {
+                    paddedRow.push('');
+                }
+                return paddedRow.slice(0, maxCols);
+            });
+
+            // Build markdown table
+            let markdown = '';
+            
+            // Header row (first row)
+            const markdownHeaderRow = normalizedRows[0];
+            markdown += '| ' + markdownHeaderRow.join(' | ') + ' |\n';
+            
+            // Separator row
+            markdown += '| ' + markdownHeaderRow.map(() => '---').join(' | ') + ' |\n';
+            
+            // Data rows
+            for (let i = 1; i < normalizedRows.length; i++) {
+                const row = normalizedRows[i];
+                markdown += '| ' + row.join(' | ') + ' |\n';
+            }
+
+            return markdown.trim();
+        }
+
+        function applyCustomCSS() {
+            const css = styleCss.value;
+            dynamicStyleElement.textContent = css;
+        }
+        
+        function updateStyleCSS() {
+            const selectedStyle = styleSelect.value;
+            const cssTemplate = styleTemplates[selectedStyle] || styleTemplates.default;
+            styleCss.value = cssTemplate;
+            applyCustomCSS();
+        }
+        
+        function updateMarkdownAndPreview() {
+            const tsv = tsvInput.value;
+            const manualCols = columnCountInput.value ? parseInt(columnCountInput.value) : null;
+            const markdown = convertTSVToMarkdown(tsv, manualCols);
+            
+            markdownOutput.value = markdown;
+            
+            if (markdown) {
+                // Render markdown to HTML
+                const html = marked.parse(markdown);
+                preview.innerHTML = html;
+                
+                // Apply selected style to the table
+                const table = preview.querySelector('table');
+                if (table) {
+                    const selectedStyle = styleSelect.value;
+                    // Add base md-table class
+                    table.classList.add('md-table');
+                    
+                    // Remove style classes
+                    table.classList.remove('aebr', 'style80k');
+                    
+                    // Apply selected style class
+                    if (selectedStyle === '80000hours') {
+                        table.classList.add('style80k');
+                    } else {
+                        table.classList.add('aebr');
+                    }
+                }
+                
+                // Apply custom CSS from textarea
+                applyCustomCSS();
+            } else {
+                preview.innerHTML = '<div class="empty-state">Enter HTML table data above to see the preview</div>';
+            }
+        }
+
+        // Update on input
+        tsvInput.addEventListener('input', updateMarkdownAndPreview);
+        columnCountInput.addEventListener('input', updateMarkdownAndPreview);
+        styleSelect.addEventListener('change', () => {
+            updateStyleCSS();
+            updateMarkdownAndPreview();
+        });
+        
+        // Initial update
+        updateStyleCSS();
+        updateMarkdownAndPreview();
+    </script>
+</body>
+</html>
