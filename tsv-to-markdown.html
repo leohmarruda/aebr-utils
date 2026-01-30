@@ -4,7 +4,40 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HTML-Paste to Markdown Table Converter</title>
-    <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js" onerror="console.error('Failed to load marked.js')"></script>
+    <script>
+        // Try to load marked.js from multiple CDNs
+        (function() {
+            const cdns = [
+                'https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js',
+                'https://unpkg.com/marked@12.0.0/marked.min.js',
+                'https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js'
+            ];
+            
+            let currentIndex = 0;
+            function loadMarked() {
+                if (currentIndex >= cdns.length) {
+                    console.warn('Could not load marked.js from any CDN, using fallback parser');
+                    return;
+                }
+                
+                const script = document.createElement('script');
+                script.src = cdns[currentIndex];
+                script.onerror = function() {
+                    currentIndex++;
+                    loadMarked();
+                };
+                script.onload = function() {
+                    // Marked loaded successfully
+                    if (typeof initializeApp === 'function') {
+                        initializeApp();
+                    }
+                };
+                document.head.appendChild(script);
+            }
+            
+            loadMarked();
+        })();
+    </script>
     <style>
         * {
             margin: 0;
@@ -781,6 +814,67 @@
             applyCustomCSS();
         }
         
+        // Simple markdown table parser (fallback when marked.js is not available)
+        function parseMarkdownTable(markdown) {
+            const lines = markdown.split('\n').filter(line => line.trim());
+            if (lines.length < 2) {
+                return '<pre>' + markdown.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>';
+            }
+            
+            // Parse markdown table
+            const rows = [];
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                // Skip separator row (---)
+                if (line.match(/^\|[\s\-:|]+\|$/)) {
+                    continue;
+                }
+                // Parse table row
+                if (line.startsWith('|') && line.endsWith('|')) {
+                    const cells = line.slice(1, -1).split('|').map(cell => cell.trim());
+                    rows.push(cells);
+                }
+            }
+            
+            if (rows.length === 0) {
+                return '<pre>' + markdown.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>';
+            }
+            
+            // Build HTML table
+            let html = '<table>\n';
+            
+            // Header row
+            if (rows.length > 0) {
+                html += '  <thead>\n    <tr>\n';
+                rows[0].forEach(cell => {
+                    html += '      <th>' + escapeHtml(cell) + '</th>\n';
+                });
+                html += '    </tr>\n  </thead>\n';
+            }
+            
+            // Data rows
+            if (rows.length > 1) {
+                html += '  <tbody>\n';
+                for (let i = 1; i < rows.length; i++) {
+                    html += '    <tr>\n';
+                    rows[i].forEach(cell => {
+                        html += '      <td>' + escapeHtml(cell) + '</td>\n';
+                    });
+                    html += '    </tr>\n';
+                }
+                html += '  </tbody>\n';
+            }
+            
+            html += '</table>';
+            return html;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
         function updateMarkdownAndPreview() {
             const tsv = tsvInput.value;
             const manualCols = columnCountInput.value ? parseInt(columnCountInput.value) : null;
@@ -806,11 +900,11 @@
                     } else if (typeof markedLib === 'function') {
                         html = markedLib(markdown);
                     } else {
-                        html = '<pre>' + markdown.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>';
+                        html = parseMarkdownTable(markdown);
                     }
                 } else {
-                    // Fallback: simple HTML conversion
-                    html = '<pre>' + markdown.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>';
+                    // Fallback: parse markdown table ourselves
+                    html = parseMarkdownTable(markdown);
                 }
                 preview.innerHTML = html;
                 
@@ -885,14 +979,8 @@
             updateMarkdownAndPreview();
         });
         
-        // Wait for marked to load before initializing
+        // Initialize app (no need to wait for marked.js since we have fallback parser)
         function initializeApp() {
-            if (typeof marked === 'undefined' && typeof window.marked === 'undefined') {
-                // Wait a bit and try again
-                setTimeout(initializeApp, 100);
-                return;
-            }
-            
             // Initial update
             updateStyleCSS();
             updateMarkdownAndPreview();
