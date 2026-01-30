@@ -290,6 +290,44 @@
             cursor: default;
         }
 
+        .copy-hint,
+        .instruction-text {
+            font-size: 0.85em;
+            color: #666;
+            font-style: italic;
+            margin-top: 5px;
+            margin-bottom: 10px;
+        }
+
+        .copy-hint::before {
+            content: "💡 ";
+        }
+
+        .copy-feedback {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #4caf50;
+            color: white;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-weight: 600;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            animation: fadeInOut 2s ease-in-out;
+            pointer-events: none;
+        }
+
+        @keyframes fadeInOut {
+            0%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+            10%, 90% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        }
+
+        .editor-panel textarea[readonly] {
+            cursor: copy;
+        }
+
         .empty-state {
             color: #999;
             font-style: italic;
@@ -326,6 +364,7 @@
         <div class="editor-section">
             <div class="editor-panel">
                 <label for="tsv-input">HTML Table Input</label>
+                <div class="instruction-text">Copy and paste the table from HTML page here</div>
                 <textarea id="tsv-input" placeholder="Paste your HTML table data here...&#10;For example:&#10;Name	Age	City&#10;John	25	New York&#10;Jane	30	London"></textarea>
                 <div style="margin-top: 10px; display: flex; align-items: center; gap: 10px;">
                     <label for="column-count" style="margin: 0; font-size: 0.9em; color: #666;">Columns (auto-detect if empty):</label>
@@ -334,6 +373,7 @@
             </div>
             <div class="editor-panel">
                 <label for="markdown-output">Markdown Table Output</label>
+                <div class="copy-hint">Double-click to copy</div>
                 <textarea id="markdown-output" readonly placeholder="Markdown table will appear here..."></textarea>
             </div>
         </div>
@@ -354,6 +394,7 @@
             </div>
             <div class="style-editor">
                 <label for="style-css">CSS Style Code:</label>
+                <div class="copy-hint">Double-click to copy</div>
                 <textarea id="style-css" readonly placeholder="CSS code will appear here..."></textarea>
             </div>
         </div>
@@ -745,7 +786,13 @@
             const manualCols = columnCountInput.value ? parseInt(columnCountInput.value) : null;
             const markdown = convertTSVToMarkdown(tsv, manualCols);
             
-            markdownOutput.value = markdown;
+            // Get selected style
+            const selectedStyle = styleSelect.value;
+            const tableStyle = selectedStyle === '80000hours' ? 'style80k' : 'aebr';
+            
+            // Wrap markdown with tags
+            const wrappedMarkdown = markdown ? `<markdown table="${tableStyle}">\n${markdown}\n</markdown>` : '';
+            markdownOutput.value = wrappedMarkdown;
             
             if (markdown) {
                 // Render markdown to HTML
@@ -755,7 +802,6 @@
                 // Apply selected style to the table
                 const table = preview.querySelector('table');
                 if (table) {
-                    const selectedStyle = styleSelect.value;
                     // Add base md-table class
                     table.classList.add('md-table');
                     
@@ -776,6 +822,45 @@
                 preview.innerHTML = '<div class="empty-state">Enter HTML table data above to see the preview</div>';
             }
         }
+
+        // Function to show copy feedback
+        function showCopyFeedback() {
+            const feedback = document.createElement('div');
+            feedback.className = 'copy-feedback';
+            feedback.textContent = 'Copied to clipboard!';
+            document.body.appendChild(feedback);
+            
+            setTimeout(() => {
+                feedback.remove();
+            }, 2000);
+        }
+
+        // Double-click to copy functionality
+        function setupCopyOnDoubleClick(textarea) {
+            textarea.addEventListener('dblclick', () => {
+                textarea.select();
+                textarea.setSelectionRange(0, 99999); // For mobile devices
+                
+                try {
+                    document.execCommand('copy');
+                    showCopyFeedback();
+                } catch (err) {
+                    // Fallback for modern browsers
+                    navigator.clipboard.writeText(textarea.value).then(() => {
+                        showCopyFeedback();
+                    }).catch(() => {
+                        // If clipboard API fails, try execCommand
+                        textarea.select();
+                        document.execCommand('copy');
+                        showCopyFeedback();
+                    });
+                }
+            });
+        }
+
+        // Setup copy on double-click for markdown output and CSS textareas
+        setupCopyOnDoubleClick(markdownOutput);
+        setupCopyOnDoubleClick(styleCss);
 
         // Update on input
         tsvInput.addEventListener('input', updateMarkdownAndPreview);
